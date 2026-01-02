@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CQ Score Tracker</title>
+
+  <style>
+    body {
+      background: #f4f4f4;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 12px;
+    }
+
+    h1, h2 {
+      margin: 6px 0;
+    }
+
+    .header {
+      margin-bottom: 16px;
+    }
+
+    .person {
+      background: #111;
+      color: white;
+      padding: 14px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+
+    .score {
+      font-size: 16px;
+      color: #dddddd;
+    }
+
+    .buttons button {
+      font-size: 16px;
+      margin-left: 6px;
+      padding: 6px 10px;
+    }
+
+    .add-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 28px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: #000;
+      color: white;
+    }
+
+    /* Leaderboard colours */
+    .rank-1 button {
+      background: #39ff14;
+      color: black;
+    }
+
+    .rank-2 button {
+      background: #ff9800;
+      color: black;
+    }
+
+    .rank-3 button {
+      background: #ffeb3b;
+      color: black;
+    }
+
+    .bottom-3 button {
+      background: #e53935;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="header">
+  <h1>CQ Score Tracker</h1>
+  <h2 id="meta"></h2>
+
+  <button onclick="finishQuiz()" style="
+    background:#2e7d32;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    margin-top:8px;
+  ">
+    Finish Quiz
+  </button>
+</div>
+
+<div id="list"></div>
+
+<button class="add-btn" onclick="addParticipant()">+</button>
+
+<script>
+/* ---------- INITIAL SETUP ---------- */
+
+let edition = localStorage.getItem("edition");
+let qm = localStorage.getItem("qm");
+
+if (!edition) {
+  do {
+    edition = prompt("Enter edition number:");
+  } while (!/^\d+$/.test(edition));
+  localStorage.setItem("edition", edition);
+}
+
+if (!qm) {
+  do {
+    qm = prompt("Enter QM name:");
+  } while (!/^[A-Za-z ]+$/.test(qm));
+  localStorage.setItem("qm", qm);
+}
+
+document.getElementById("meta").innerText =
+  "Edition " + edition + " | QM: " + qm;
+
+/* ---------- DATA ---------- */
+
+let participants =
+  JSON.parse(localStorage.getItem("participants")) || [];
+
+/* ---------- CORE FUNCTIONS ---------- */
+
+function save() {
+  localStorage.setItem("participants", JSON.stringify(participants));
+}
+
+function render() {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  participants.sort((a, b) => b.score - a.score);
+  const total = participants.length;
+
+  participants.forEach((p, i) => {
+    let rankClass = "";
+
+    if (i === 0) rankClass = "rank-1";
+    else if (i === 1) rankClass = "rank-2";
+    else if (i === 2) rankClass = "rank-3";
+    else if (i >= total - 3) rankClass = "bottom-3";
+
+    list.innerHTML += `
+      <div class="person ${rankClass}">
+        <div>
+          <div class="name">#${i + 1} ${p.name}</div>
+          <div class="score">Score: ${p.score}</div>
+        </div>
+        <div class="buttons">
+          <button onclick="update(${i}, 20)">+20</button>
+          <button onclick="update(${i}, -10)">-10</button>
+          <button onclick="update(${i}, -5)">-5</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+function update(index, delta) {
+  participants[index].score += delta;
+  save();
+  render();
+}
+
+function addParticipant() {
+  let name;
+  do {
+    name = prompt("Enter participant name:");
+  } while (!name || !name.trim());
+
+  participants.push({ name: name.trim(), score: 0 });
+  save();
+  render();
+}
+
+/* ---------- CSV EXPORT ---------- */
+
+function exportCSV() {
+  const sorted = [...participants].sort((a, b) => b.score - a.score);
+  let csv = "Edition,QM Name,Rank,Participant,Score\n";
+
+  sorted.forEach((p, i) => {
+    csv += `"${edition}","${qm}",${i + 1},"${p.name}",${p.score}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `CQ_Scores_Edition_${edition}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- FINISH QUIZ FLOW ---------- */
+
+function finishQuiz() {
+  if (participants.length === 0) {
+    alert("No participants to finish quiz.");
+    return;
+  }
+
+  const confirmEnd = confirm(
+    "Are you sure you want to finish the quiz?\n\n" +
+    "Final scores will be exported and submission form will open."
+  );
+
+  if (!confirmEnd) return;
+
+  exportCSV();
+
+  setTimeout(() => {
+    // 🔴 REPLACE THIS WITH YOUR PREFILLED GOOGLE FORM URL
+    const googleFormUrl =
+  "https://docs.google.com/forms/d/e/1FAIpQLScsXWxfhY3svlBMZMP-VuWx7HUMbu1cJjkjqYZJwGhZwJM-vg/viewform" +
+  "?usp=pp_url" +
+  "&entry.90836755=" + encodeURIComponent(edition) +
+  "&entry.1791414375=" + encodeURIComponent(qm);
+
+    window.location.href = googleFormUrl;
+  }, 600);
+}
+
+render();
+
+/* ---------- SERVICE WORKER ---------- */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+
+</body>
+</html>
